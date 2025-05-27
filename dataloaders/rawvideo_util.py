@@ -5,6 +5,8 @@ from PIL import Image
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
 # pip install opencv-python
 import cv2
+import os
+from PIL import Image
 
 class RawVideoExtractorCV2():
     def __init__(self, centercrop=False, size=224, framerate=-1, ):
@@ -38,48 +40,88 @@ class RawVideoExtractorCV2():
         assert sample_fp > -1
 
         # Samples a frame sample_fp X frames.
-        cap = cv2.VideoCapture(video_file)
-        frameCount = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        # cap = cv2.VideoCapture(video_file)
+        # frameCount = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # fps = int(cap.get(cv2.CAP_PROP_FPS))
 
-        total_duration = (frameCount + fps - 1) // fps
-        start_sec, end_sec = 0, total_duration
+        frames = [file for file in os.listdir(video_file) if 'jpg' in file]
+        frames_len = len(frames)
 
-        if start_time is not None:
-            start_sec, end_sec = start_time, end_time if end_time <= total_duration else total_duration
-            cap.set(cv2.CAP_PROP_POS_FRAMES, int(start_time * fps))
 
-        interval = 1
-        if sample_fp > 0:
-            interval = fps // sample_fp
+        def _load_image(directory, idx):
+            return Image.open(os.path.join(directory, f"{idx:04d}.jpg")).convert('RGB')
+
+        self.random_sample = False
+        if self.random_sample:
+            # print(f'DEBUGJM: {path} {len(frames)}')
+            frame_idx = self._random_sample_frame_idx(frames_len)
+            frames = [preprocess(_load_image(video_file, x+1)) for x in frame_idx]
+            # frames = [frames[x].to_rgb().to_ndarray() for x in frame_idx]
+            # frames = th.as_tensor(np.stack(frames)).float() / 255.
         else:
-            sample_fp = fps
-        if interval == 0: interval = 1
+            frames = [preprocess(_load_image(video_file, x+1)) for x in range(frames_len)] #preprocess(
+            frames = th.as_tensor(np.stack(frames))
 
-        inds = [ind for ind in np.arange(0, fps, interval)]
-        assert len(inds) >= sample_fp
-        inds = inds[:sample_fp]
+        
+        return {'video': frames}
+        # total_duration = len(frames) # (frameCount + fps - 1) // fps
+        # start_sec, end_sec = 0, total_duration
 
-        ret = True
-        images, included = [], []
+        # if start_time is not None:
+        #     start_sec, end_sec = start_time, end_time if end_time <= total_duration else total_duration
+        #     # cap.set(cv2.CAP_PROP_POS_FRAMES, int(start_time * fps))
 
-        for sec in np.arange(start_sec, end_sec + 1):
-            if not ret: break
-            sec_base = int(sec * fps)
-            for ind in inds:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, sec_base + ind)
-                ret, frame = cap.read()
-                if not ret: break
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                images.append(preprocess(Image.fromarray(frame_rgb).convert("RGB")))
+        # # interval = 1
+        # # if sample_fp > 0:
+        # #     interval = fps // sample_fp
+        # # else:
+        # #     sample_fp = fps
+        # # if interval == 0: interval = 1
 
-        cap.release()
+        # sample_fp = 8
+        # interval = 1
+        # fps = 8
 
-        if len(images) > 0:
-            video_data = th.tensor(np.stack(images))
+        # inds = [ind for ind in np.arange(0, fps, interval)]
+        # assert len(inds) >= sample_fp
+        # inds = inds[:sample_fp]
+
+        # ret = True
+        # images, included = [], []
+
+        # for sec in np.arange(start_sec, end_sec + 1):
+        #     if not ret: break
+        #     sec_base = int(sec * fps)
+        #     for ind in inds:
+        #         cap.set(cv2.CAP_PROP_POS_FRAMES, sec_base + ind)
+        #         ret, frame = cap.read()
+        #         if not ret: break
+        #         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        #         images.append(preprocess(Image.fromarray(frame_rgb).convert("RGB")))
+
+        # cap.release()
+
+        # if len(images) > 0:
+        #     video_data = th.tensor(np.stack(images))
+        # else:
+        #     video_data = th.zeros(1)
+
+    def _random_sample_frame_idx(self, len):
+        frame_indices = []
+        # print(f'DEBUGJM: {len}')
+        if self.sampling_rate <= 0: # tsn sample
+            seg_size = (len - 1) / self.num_frames
+            for i in range(self.num_frames):
+                start, end = round(seg_size * i), round(seg_size * (i + 1))
+                frame_indices.append(np.random.randint(start, end + 1)) # random
+        elif self.sampling_rate * (self.num_frames - 1) + 1 >= len:
+            for i in range(self.num_frames):
+                frame_indices.append(i * self.sampling_rate if i * self.sampling_rate < len else frame_indices[-1])
         else:
-            video_data = th.zeros(1)
-        return {'video': video_data}
+            start = np.random.randint(len - self.sampling_rate * (self.num_frames - 1))
+            frame_indices = list(range(start, start + self.sampling_rate * self.num_frames, self.sampling_rate))
+
+        return frame_indices
 
     def get_video_data(self, video_path, start_time=None, end_time=None):
         image_input = self.video_to_tensor(video_path, self.transform, sample_fp=self.framerate, start_time=start_time, end_time=end_time)

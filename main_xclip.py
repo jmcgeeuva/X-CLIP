@@ -17,6 +17,7 @@ from modules.optimization import BertAdam
 
 from util import parallel_apply, get_logger
 from dataloaders.data_dataloaders import DATALOADER_DICT
+from tqdm import tqdm
 
 torch.distributed.init_process_group(backend="nccl")
 
@@ -75,7 +76,7 @@ def get_args(description='X-CLIP on Retrieval Task'):
     parser.add_argument("--datatype", default="msrvtt", type=str, help="Point the dataset to finetune.")
 
     parser.add_argument("--world_size", default=0, type=int, help="distribted training")
-    parser.add_argument("--local_rank", default=0, type=int, help="distribted training")
+    parser.add_argument("--local-rank", default=0, type=int, help="distribted training")
     parser.add_argument("--rank", default=0, type=int, help="distribted training")
     parser.add_argument('--coef_lr', type=float, default=1., help='coefficient for bert branch.')
     parser.add_argument('--use_mil', action='store_true', help="Whether use MIL as Miech et. al. (2020).")
@@ -265,6 +266,8 @@ def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, 
         input_ids, input_mask, segment_ids, video, video_mask = batch
         loss = model(input_ids, segment_ids, input_mask, video, video_mask)
 
+
+
         if n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu.
         if args.gradient_accumulation_steps > 1:
@@ -358,7 +361,7 @@ def eval_epoch(args, model, test_dataloader, device, n_gpu):
         # ----------------------------
         # 1. cache the features
         # ----------------------------
-        for bid, batch in enumerate(test_dataloader): # Maybe something went wrong here!!!
+        for bid, batch in enumerate(tqdm(test_dataloader, total=len(test_dataloader), desc="{}/{}\r".format(bid, len(test_dataloader)))): # Maybe something went wrong here!!!
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids, video, video_mask = batch
 
@@ -388,7 +391,7 @@ def eval_epoch(args, model, test_dataloader, device, n_gpu):
                 batch_visual_output_list.append(visual_output)
                 batch_list_v.append((video_mask,))
 
-            print("{}/{}\r".format(bid, len(test_dataloader)), end="")
+            # print("{}/{}\r".format(bid, len(test_dataloader)), end="")
 
         # ----------------------------------
         # 2. calculate the similarity
@@ -512,9 +515,14 @@ def main():
         resumed_epoch = 0
         if args.resume_model:
             checkpoint = torch.load(args.resume_model, map_location='cpu')
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            resumed_epoch = checkpoint['epoch']+1
-            resumed_loss = checkpoint['loss']
+            num = args.resume_model.split('/')[-1].split('.')[-1]
+            opt_path = os.path.join('/'.join(args.resume_model.split('/')[:-1]), f'pytorch_opt.bin.{num}')
+            opt_checkpoint = torch.load(opt_path, map_location='cpu')
+            # opt_checkpoint = torch.load(args.resume_model, map_location='cpu')
+            print(opt_path)
+            optimizer.load_state_dict(opt_checkpoint['optimizer_state_dict'])
+            resumed_epoch = opt_checkpoint['epoch']+1
+            resumed_loss = opt_checkpoint['loss']
         
         global_step = 0
         for epoch in range(resumed_epoch, args.epochs):
@@ -525,10 +533,12 @@ def main():
                 logger.info("Epoch %d/%s Finished, Train Loss: %f", epoch + 1, args.epochs, tr_loss)
 
                 output_model_file = save_model(epoch, args, model, optimizer, tr_loss, type_name="")
+                best_output_model_file = output_model_file
 
                 ## Run on val dataset for selecting best model.
-                logger.info("Eval on val dataset")
-                R1 = eval_epoch(args, model, val_dataloader, device, n_gpu)
+                # logger.info("Eval on val dataset")
+                # R1 = eval_epoch(args, model, val_dataloader, device, n_gpu)
+                R1 = 0
 
                 if best_score <= R1:
                     best_score = R1

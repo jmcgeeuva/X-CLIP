@@ -21,6 +21,8 @@ def compute_metrics(x):
     metrics["MedianR"] = metrics['MR']
     metrics["MeanR"] = np.mean(ind) + 1
     metrics["cols"] = [int(i) for i in list(ind)]
+    metrics['Top1_Accuracy'] = metrics['R1']
+    metrics['Top2_Accuracy'] = float(np.sum(ind < 2)) * 100 / len(ind)
     return metrics
 
 def print_computed_metrics(metrics):
@@ -28,6 +30,8 @@ def print_computed_metrics(metrics):
     r5 = metrics['R5']
     r10 = metrics['R10']
     mr = metrics['MR']
+    acc1 - metrics['Top1_Accuracy']
+    acc2 - metrics['Top2_Accuracy']
     print('R@1: {:.4f} - R@5: {:.4f} - R@10: {:.4f} - Median R: {}'.format(r1, r5, r10, mr))
 
 # below two functions directly come from: https://github.com/Deferf/Experiments
