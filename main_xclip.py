@@ -361,6 +361,7 @@ def eval_epoch(args, model, test_dataloader, device, n_gpu):
         # ----------------------------
         # 1. cache the features
         # ----------------------------
+        bid = 0
         for bid, batch in enumerate(tqdm(test_dataloader, total=len(test_dataloader), desc="{}/{}\r".format(bid, len(test_dataloader)))): # Maybe something went wrong here!!!
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids, video, video_mask = batch
@@ -551,8 +552,7 @@ def main():
             eval_epoch(args, model, test_dataloader, device, n_gpu)
 
     elif args.do_eval:
-        if args.local_rank == 0:
-            eval_epoch(args, model, test_dataloader, device, n_gpu)
+        eval_epoch(args, model, test_dataloader, device, n_gpu)
 
 if __name__ == "__main__":
     main()

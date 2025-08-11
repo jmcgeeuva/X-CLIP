@@ -4,7 +4,7 @@ python -m torch.distributed.launch \
     --nproc_per_node=4 \
     main_xclip.py \
     --do_eval \
-    --init_model ./ckpts_dsw/xclip_edu_vit32/pytorch_model.bin.0 \
+    --init_model ./ckpts_dsw/xclip_edu_vit32/pytorch_model.bin.14 \
     --num_thread_reader=4 \
     --epochs=20 \
     --batch_size=8 \

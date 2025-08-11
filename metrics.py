@@ -14,8 +14,9 @@ def compute_metrics(x):
     ind = np.where(ind == 0)
     ind = ind[1]
     metrics = {}
-    metrics['R1'] = float(np.sum(ind == 0)) * 100 / len(ind)
-    metrics['R5'] = float(np.sum(ind < 5)) * 100 / len(ind)
+    raise ValueError(ind)
+    metrics['R1'] = float(np.sum(ind == 0)) * 100 / len(ind)  # Recall@1
+    metrics['R5'] = float(np.sum(ind < 5)) * 100 / len(ind)   # Recall@5  
     metrics['R10'] = float(np.sum(ind < 10)) * 100 / len(ind)
     metrics['MR'] = np.median(ind) + 1
     metrics["MedianR"] = metrics['MR']
@@ -23,6 +24,8 @@ def compute_metrics(x):
     metrics["cols"] = [int(i) for i in list(ind)]
     metrics['Top1_Accuracy'] = metrics['R1']
     metrics['Top2_Accuracy'] = float(np.sum(ind < 2)) * 100 / len(ind)
+    # TP / (TP + FP)
+    tp = float(np.sum(ind == 0)) / np.sum(np.array([float(np.sum(ind == i)) for i in range(6)]))
     return metrics
 
 def print_computed_metrics(metrics):
